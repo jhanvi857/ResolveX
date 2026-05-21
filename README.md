@@ -1,4 +1,4 @@
-# RootTrace
+# ResolveX
 
 Modern DNS Resolver Dashboard built with React, TypeScript, Tailwind CSS, Framer Motion, and Recharts.
 

@@ -229,7 +229,7 @@ function App() {
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary">DNS Resolver Dashboard</p>
-                <h1 className="text-xl font-black tracking-tight text-text-main">RootTrace</h1>
+                <h1 className="text-xl font-black tracking-tight text-text-main">ResolveX</h1>
               </div>
             </div>
 
