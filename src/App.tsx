@@ -74,6 +74,10 @@ function normalizeDomainInput(value: string): string {
   return trimmed.replace(/\/$/, '').split(/[/?#]/)[0].replace(/\.$/, '')
 }
 
+// API base URL can be provided via Vite env `VITE_API_BASE_URL`.
+// Fallback to `window.location.origin` for local development.
+const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL as string) || window.location.origin
+
 const navItems = ['Resolver', 'Query Logs', 'Analytics', 'Cache', 'Settings']
 
 const resolutionSteps: ResolverStep[] = [
@@ -142,7 +146,7 @@ function App() {
 
   const refreshCache = async () => {
     try {
-      const response = await fetch('/api/cache')
+      const response = await fetch(`${API_BASE}/api/cache`)
       if (!response.ok) {
         return
       }
@@ -215,7 +219,7 @@ function App() {
     setLiveLogs((current) => [`[resolver] Dispatching ${normalizedDomain} to ${upstreamServer || 'root servers'} (${queryType})`, ...current].slice(0, 10))
 
     try {
-      const url = new URL('/api/resolve', window.location.origin)
+      const url = new URL('/api/resolve', API_BASE)
       url.searchParams.set('domain', normalizedDomain)
       url.searchParams.set('type', queryType)
       if (upstreamServer.trim()) {
