@@ -2,37 +2,33 @@
 
 ResolveX is a lightweight recursive DNS resolver with a web dashboard for tracing and inspecting DNS lookups. It accepts user-provided host inputs (including pasted URLs), normalizes the input into host candidates, performs recursive DNS resolution (optionally via a specified upstream server), and displays resolution hops, latency, and cache state.
 
-## Contents
-- Project summary and goals
-- Architecture overview (diagram)
-- Request and response flow (sequence diagram)
-- Setup and quick start
-- Usage and examples
-- Internal components and implementation notes
-- Development and testing
-- Troubleshooting and FAQ
-- Contributing and license
+## Documentation map
+
+| Section | Description | File |
+| --- | --- | --- |
+| Architecture overview | System components and data flow | This file |
+| Request and response flow | End-to-end request lifecycle | This file |
+| Setup and quick start | Local development setup | This file |
+| API | Backend endpoint contract | This file |
+| Implementation details | Resolver, cache, and parsing behavior | This file |
+| Development and testing | Validation commands and test files | This file |
+| Learning outcomes | DNS and web infrastructure notes | [learning.md](learning.md) |
+| Contributing | Contribution workflow and code review guidance | [contributing.md](contributing.md) |
+| License | MIT license | [LICENSE](LICENSE) |
 
 ## Architecture overview
 
 ```mermaid
 flowchart LR
-  Browser[Browser UI]
-  API[Backend API]
-  Cache[Local Cache]
-  Resolver[Recursive Resolver]
-  Root[Root Servers]
-  TLD[TLD Nameservers]
-  Auth[Authoritative Nameserver]
-  Browser -->|HTTP /api/resolve| API
-  API -->|Resolve(domain)| Resolver
-  Resolver -->|cache lookup| Cache
-  Resolver -->|query| Root
-  Root --> TLD
-  TLD --> Auth
-  Auth --> Resolver
-  Resolver --> API
-  API -->|HTTP JSON| Browser
+  browser[Browser UI] -->|HTTP /api/resolve| api[Backend API]
+  api -->|Resolve domain| resolver[Recursive Resolver]
+  resolver -->|cache lookup| cache[Local Cache]
+  resolver -->|query| root[Root Servers]
+  root --> tld[TLD Servers]
+  tld --> auth[Authoritative Server]
+  auth --> resolver
+  resolver --> api
+  api -->|JSON response| browser
 ```
 
 ## Request and response flow
@@ -63,6 +59,10 @@ sequenceDiagram
   A-->>B: JSON response
   B->>U: display hops, ip, ttl, latency
 ```
+
+## Learning outcomes
+
+This project also includes a separate learning summary covering DNS, TCP, TLS, CDNs, and modern web routing. See [learning.md](learning.md).
 
 ## Setup and quick start
 
@@ -157,21 +157,10 @@ npm run build
 - Tests to look at
   - `backend/internal/resolver/recursive_test.go` - normalization and candidate ordering tests
 
-## Troubleshooting
+## Contributing
 
-- If pasted URLs do not resolve
-  - Confirm the UI-normalized `domain` shown in the dashboard. The system applies several normalization strategies: regex extraction, URL parsing, and candidate fallbacks.
-  - Check backend logs for which candidate names were attempted and which servers were queried.
-  - Clear the local cache (via the dashboard Cache tab) if a cached negative result is suspected.
-
-- Common failures
-  - No delegation found: indicates the resolver could not find additional nameservers or responses were empty. This may happen if upstream network is restricted.
-  - Upstream server unreachable: provide an explicit `server` parameter or ensure the network allows UDP/TCP to port 53.
-
-## Contribution
-
-- Fork the repository and open a pull request with tests for new behavior. Keep changes focused and add unit tests for normalization or resolver behavior as needed.
+Contribution guidelines are documented in [contributing.md](contributing.md).
 
 ## License
 
-This project does not include a license file in this repository. Add a `LICENSE` file if you intend to publish the code with an explicit license.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
