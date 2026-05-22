@@ -220,12 +220,12 @@ function App() {
 
   return (
     <div className="relative min-h-screen pb-12">
-      <div className="relative mx-auto max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+      <div className="relative mx-auto max-w-400 px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
         <header className="sticky top-4 z-30 mb-6 rounded-3xl border border-border-subtle bg-white/70 px-4 py-4 shadow-premium backdrop-blur-xl sm:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/20 bg-primary/5 text-sm font-semibold tracking-[0.3em] text-primary shadow-sm">
-                RT
+                RX
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary">DNS Resolver Dashboard</p>
