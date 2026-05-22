@@ -1,12 +1,78 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
-import ResolverTab from './components/ResolverTab'
-import type { ResolverStep } from './components/ResolverTab'
-import QueryLogsTab from './components/QueryLogsTab'
-import type { QueryRecord } from './components/QueryLogsTab'
+import { useEffect, useState } from 'react'
 import AnalyticsTab from './components/AnalyticsTab'
 import CacheTab from './components/CacheTab'
+import QueryLogsTab from './components/QueryLogsTab'
+import type { QueryRecord } from './components/QueryLogsTab'
+import ResolverTab from './components/ResolverTab'
+import type { ResolverStep } from './components/ResolverTab'
 import SettingsTab from './components/SettingsTab'
+
+type ResolveResponse = {
+  domain: string
+  server: string
+  queryType: 'A' | 'AAAA' | 'MX'
+  ip: string
+  cacheHit: boolean
+  hops: Array<{
+    server: string
+    time: number
+  }>
+  latency: number
+  ttl: number
+}
+
+type CacheSnapshotEntry = {
+  domain: string
+  ip: string
+  type: string
+  ttl: number
+  maxTtl: number
+  size: string
+  expiresIn: number
+}
+
+type ResolvePayload = ResolveResponse & {
+  Ttl?: number
+  ttl?: number
+}
+
+const hostPattern = /(?:https?:\/\/)?((?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+)/i
+
+function normalizeResolvePayload(payload: ResolvePayload): ResolveResponse {
+  const ttlCandidate = payload.ttl ?? payload.Ttl
+  return {
+    ...payload,
+    ttl: typeof ttlCandidate === 'number' && Number.isFinite(ttlCandidate) ? ttlCandidate : 0,
+  }
+}
+
+function normalizeDomainInput(value: string): string {
+  const trimmed = value.trim()
+
+  if (!trimmed) {
+    return ''
+  }
+
+  const hostMatch = trimmed.match(hostPattern)
+  if (hostMatch?.[1]) {
+    return hostMatch[1].replace(/\.$/, '')
+  }
+
+  for (const candidate of [trimmed, `https://${trimmed}`]) {
+    try {
+      const parsed = new URL(candidate)
+      const hostname = parsed.hostname.replace(/\.$/, '')
+      if (hostname) {
+        return hostname
+      }
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  return trimmed.replace(/\/$/, '').split(/[/?#]/)[0].replace(/\.$/, '')
+}
 
 const navItems = ['Resolver', 'Query Logs', 'Analytics', 'Cache', 'Settings']
 
@@ -30,7 +96,7 @@ const resolutionSteps: ResolverStep[] = [
     ip: '192.5.6.30',
     responseTime: '14 ms',
     status: 'Idle',
-    detail: 'Points the resolver to the domain’s authoritative name server.',
+    detail: 'Points the resolver to the domain\'s authoritative name server.',
   },
   {
     name: 'Authoritative Server',
@@ -48,63 +114,6 @@ const resolutionSteps: ResolverStep[] = [
   },
 ]
 
-const baseQueryHistory: QueryRecord[] = [
-  {
-    domain: 'docs.cloudflare.com',
-    time: '09:14:05',
-    resolvedIp: '104.18.12.98',
-    latency: '12 ms',
-    status: 'Cache hit',
-    source: 'cache',
-    queryType: 'A',
-  },
-  {
-    domain: 'github.com',
-    time: '09:12:49',
-    resolvedIp: '140.82.121.4',
-    latency: '18 ms',
-    status: 'Success',
-    source: 'network',
-    queryType: 'A',
-  },
-  {
-    domain: 'api.openai.com',
-    time: '09:10:33',
-    resolvedIp: '104.18.33.45',
-    latency: '23 ms',
-    status: 'Success',
-    source: 'network',
-    queryType: 'AAAA',
-  },
-  {
-    domain: 'fonts.gstatic.com',
-    time: '09:09:02',
-    resolvedIp: '142.250.72.3',
-    latency: '7 ms',
-    status: 'Cache hit',
-    source: 'cache',
-    queryType: 'A',
-  },
-  {
-    domain: 'status.aws.amazon.com',
-    time: '09:06:21',
-    resolvedIp: '52.94.76.7',
-    latency: '29 ms',
-    status: 'Success',
-    source: 'network',
-    queryType: 'MX',
-  },
-  {
-    domain: 'developer.mozilla.org',
-    time: '09:03:18',
-    resolvedIp: '151.101.2.132',
-    latency: '14 ms',
-    status: 'Cache hit',
-    source: 'cache',
-    queryType: 'A',
-  },
-]
-
 const shellFeed = [
   '[resolver] Query accepted and normalized.',
   '[cache] Cache lookup completed in 1.4 ms.',
@@ -113,37 +122,37 @@ const shellFeed = [
   '[auth] Final A record resolved successfully.',
 ]
 
-function hashToNumber(value: string) {
-  return value.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
-}
-
-function formatIp(domain: string) {
-  const value = hashToNumber(domain)
-  const octetA = 23 + (value % 197)
-  const octetB = 11 + ((value * 3) % 233)
-  const octetC = 10 + ((value * 5) % 240)
-  const octetD = 2 + ((value * 7) % 252)
-
-  return `${octetA}.${octetB}.${octetC}.${octetD}`
-}
-
-function formatLatency(domain: string) {
-  const value = hashToNumber(domain)
-  return 12 + (value % 18)
-}
-
 function App() {
   const [activeTab, setActiveTab] = useState('Resolver')
-  const [domain, setDomain] = useState('google.com')
+  const [domain, setDomain] = useState('')
   const [queryType, setQueryType] = useState<'A' | 'AAAA' | 'MX'>('A')
+  const [upstreamServer, setUpstreamServer] = useState('1.1.1.1')
   const [isResolving, setIsResolving] = useState(false)
   const [activeStep, setActiveStep] = useState(0)
-  const [history, setHistory] = useState<QueryRecord[]>(baseQueryHistory)
+  const [history, setHistory] = useState<QueryRecord[]>([])
   const [liveLogs, setLiveLogs] = useState(shellFeed)
   const [copied, setCopied] = useState(false)
+  const [resolveError, setResolveError] = useState<string | null>(null)
+  const [lastResult, setLastResult] = useState<ResolveResponse | null>(null)
+  const [cacheEntries, setCacheEntries] = useState<CacheSnapshotEntry[]>([])
 
-  const displayLatency = useMemo(() => formatLatency(domain), [domain])
-  const displayIp = useMemo(() => formatIp(domain), [domain])
+  const activeResult = lastResult?.domain === domain && lastResult.queryType === queryType ? lastResult : null
+  const displayLatency = activeResult ? activeResult.latency : null
+  const displayIp = activeResult ? activeResult.ip : ''
+
+  const refreshCache = async () => {
+    try {
+      const response = await fetch('/api/cache')
+      if (!response.ok) {
+        return
+      }
+
+      const payload = (await response.json()) as CacheSnapshotEntry[]
+      setCacheEntries(payload)
+    } catch {
+      setCacheEntries([])
+    }
+  }
 
   useEffect(() => {
     if (!isResolving) {
@@ -156,7 +165,7 @@ function App() {
       '[root] Root server response received.',
       '[tld] Following .com delegation chain.',
       '[auth] Awaiting authoritative record.',
-      `[done] ${domain} resolved to ${displayIp}`,
+      '[done] Awaiting backend confirmation.',
     ]
 
     let index = 0
@@ -169,26 +178,11 @@ function App() {
 
       if (index >= resolutionSteps.length - 1) {
         window.clearInterval(timer)
-        window.setTimeout(() => {
-          setIsResolving(false)
-          setHistory((current) => [
-            {
-              domain,
-              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              resolvedIp: displayIp,
-              latency: `${displayLatency} ms`,
-              status: hashToNumber(domain) % 5 === 0 ? 'Cache hit' : 'Success',
-              source: hashToNumber(domain) % 5 === 0 ? 'cache' : 'network',
-              queryType,
-            },
-            ...current,
-          ])
-        }, 300)
       }
     }, 850)
 
     return () => window.clearInterval(timer)
-  }, [displayIp, displayLatency, domain, isResolving, queryType])
+  }, [domain, isResolving, queryType])
 
   useEffect(() => {
     if (!copied) {
@@ -199,21 +193,74 @@ function App() {
     return () => window.clearTimeout(timer)
   }, [copied])
 
-  const cacheHitMiss = hashToNumber(domain) % 5 === 0 ? 'Hit' : 'Miss'
-  const ttl = 60 + (hashToNumber(domain) % 240)
+  useEffect(() => {
+    if (activeTab === 'Cache') {
+      void refreshCache()
+    }
+  }, [activeTab])
 
-  const handleResolve = () => {
-    const trimmed = domain.trim()
-    if (!trimmed || isResolving) {
+  const cacheHitMiss = activeResult ? (activeResult.cacheHit ? 'Hit' : 'Miss') : null
+  const ttl = activeResult ? activeResult.ttl : null
+
+  const handleResolve = async () => {
+    const normalizedDomain = normalizeDomainInput(domain)
+    if (!normalizedDomain || isResolving) {
       return
     }
 
-    setDomain(trimmed)
+    setDomain(normalizedDomain)
+    setResolveError(null)
     setIsResolving(true)
     setActiveStep(0)
+    setLiveLogs((current) => [`[resolver] Dispatching ${normalizedDomain} to ${upstreamServer || 'root servers'} (${queryType})`, ...current].slice(0, 10))
+
+    try {
+      const url = new URL('/api/resolve', window.location.origin)
+      url.searchParams.set('domain', normalizedDomain)
+      url.searchParams.set('type', queryType)
+      if (upstreamServer.trim()) {
+        url.searchParams.set('server', upstreamServer.trim())
+      }
+
+      const response = await fetch(url.toString())
+      const payload: ResolvePayload | { error?: string } = await response.json()
+
+      if (!response.ok) {
+        const errorPayload = payload as { error?: string }
+        throw new Error(errorPayload.error ?? 'Resolver request failed')
+      }
+
+      const resolved = normalizeResolvePayload(payload as ResolvePayload)
+
+      setLastResult(resolved)
+      setHistory((current) => [
+        {
+          domain: resolved.domain,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          resolvedIp: resolved.ip,
+          latency: `${resolved.latency} ms`,
+          status: resolved.cacheHit ? 'Cache hit' : 'Success',
+          source: resolved.cacheHit ? 'cache' : 'network',
+          queryType: resolved.queryType,
+        },
+        ...current,
+      ])
+      await refreshCache()
+      setLiveLogs((current) => [`[done] ${resolved.domain} resolved via ${resolved.server || upstreamServer} to ${resolved.ip}`, ...current].slice(0, 10))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Resolver request failed'
+      setResolveError(message)
+      setLiveLogs((current) => [`[error] ${message}`, ...current].slice(0, 10))
+    } finally {
+      setIsResolving(false)
+    }
   }
 
   const handleCopyIp = async () => {
+    if (!displayIp) {
+      return
+    }
+
     await navigator.clipboard.writeText(displayIp)
     setCopied(true)
   }
@@ -241,10 +288,10 @@ function App() {
                     key={item}
                     type="button"
                     onClick={() => setActiveTab(item)}
-                    className={`rounded-full px-4.5 py-2 text-xs font-bold transition-all duration-200 cursor-pointer ${
+                    className={`cursor-pointer rounded-full px-4.5 py-2 text-xs font-bold transition-all duration-200 ${
                       isActive
-                        ? 'bg-primary text-white shadow-md shadow-primary/25 scale-102'
-                        : 'bg-transparent text-text-muted hover:text-text-main hover:bg-slate-100/60'
+                        ? 'scale-102 bg-primary text-white shadow-md shadow-primary/25'
+                        : 'bg-transparent text-text-muted hover:bg-slate-100/60 hover:text-text-main'
                     }`}
                   >
                     {item}
@@ -270,6 +317,8 @@ function App() {
                   setDomain={setDomain}
                   queryType={queryType}
                   setQueryType={setQueryType}
+                  upstreamServer={upstreamServer}
+                  resolveError={resolveError}
                   isResolving={isResolving}
                   handleResolve={handleResolve}
                   displayIp={displayIp}
@@ -283,22 +332,16 @@ function App() {
                   cacheHitMiss={cacheHitMiss}
                 />
               )}
-              {activeTab === 'Query Logs' && (
-                <QueryLogsTab
-                  history={history}
-                  clearLogs={() => setHistory([])}
-                />
-              )}
-              {activeTab === 'Analytics' && (
-                <AnalyticsTab />
-              )}
-              {activeTab === 'Cache' && (
-                <CacheTab />
-              )}
+              {activeTab === 'Query Logs' && <QueryLogsTab history={history} clearLogs={() => setHistory([])} />}
+              {activeTab === 'Analytics' && <AnalyticsTab history={history} />}
+              {activeTab === 'Cache' && <CacheTab entries={cacheEntries} onRefresh={refreshCache} />}
               {activeTab === 'Settings' && (
                 <SettingsTab
+                  upstreamServer={upstreamServer}
+                  setUpstreamServer={setUpstreamServer}
                   clearLogs={() => {
                     setHistory([])
+                    setCacheEntries([])
                     setLiveLogs([])
                   }}
                 />
