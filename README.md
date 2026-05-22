@@ -91,37 +91,6 @@ Running the full app (recommended for development)
 
 1. Start backend server (default port configured in the project). 2. Start frontend dev server. 3. Open the dashboard at the frontend URL.
 
-## Deployment
-
-- **Frontend (Vite)**
-  - Set the production API base at build time using the Vite env var `VITE_API_BASE_URL`. Example value: `https://resolvex-2ly7.onrender.com`.
-  - Local build example: create a file named `.env.production` at the project root containing:
-
-    ```env
-    VITE_API_BASE_URL=https://resolvex-2ly7.onrender.com
-    ```
-
-  - When using Render (static site), add an Environment Variable named `VITE_API_BASE_URL` with the above value in the service settings before running the build.
-  - Build the frontend as usual with `npm run build`. The frontend falls back to `window.location.origin` if `VITE_API_BASE_URL` is not set.
-
-- **Backend (Go API)**
-  - The backend respects the `PORT` environment variable commonly provided by platforms like Render. If unset, it falls back to its default port (see `backend/cmd/server`). Ensure your service sets `PORT` to the value Render (or another host) expects.
-  - Recommended: expose a lightweight health endpoint at `/health` that returns `200 OK` for liveness/readiness checks. The server already supports this endpoint in `backend/internal/api` (or add it to `cmd/server` if missing).
-  - Start command examples:
-
-    ```bash
-    # run the built server binary
-    ./server
-
-    # or run directly for quick deploys (not recommended for production):
-    go run ./cmd/server
-    ```
-
-  - For Render (service): set the Start Command to `./server` (or `go run ./cmd/server` for a pull-build-deploy setup), and ensure the `PORT` env var is configured by Render (Render usually injects `PORT` automatically).
-
-- **Notes**
-  - Make sure the frontend `VITE_API_BASE_URL` matches the backend base URL (including scheme `https://`). When using a static frontend hosting platform, set that env var in the host's build settings so the compiled assets call the correct API.
-
 ## API
 
 Endpoint: GET `/api/resolve`
