@@ -14,17 +14,19 @@ interface ResolverTabProps {
   setDomain: (domain: string) => void
   queryType: 'A' | 'AAAA' | 'MX'
   setQueryType: (type: 'A' | 'AAAA' | 'MX') => void
+  upstreamServer: string
+  resolveError: string | null
   isResolving: boolean
-  handleResolve: () => void
+  handleResolve: () => Promise<void> | void
   displayIp: string
-  displayLatency: number
+  displayLatency: number | null
   activeStep: number
   resolutionSteps: ResolverStep[]
   liveLogs: string[]
   copied: boolean
   handleCopyIp: () => void
-  ttl: number
-  cacheHitMiss: 'Hit' | 'Miss'
+  ttl: number | null
+  cacheHitMiss: 'Hit' | 'Miss' | null
 }
 
 export default function ResolverTab({
@@ -32,6 +34,8 @@ export default function ResolverTab({
   setDomain,
   queryType,
   setQueryType,
+  upstreamServer,
+  resolveError,
   isResolving,
   handleResolve,
   displayIp,
@@ -45,12 +49,13 @@ export default function ResolverTab({
   cacheHitMiss,
 }: ResolverTabProps) {
   const [expandedStep, setExpandedStep] = useState<number | null>(3)
+  const hasResolvedResult = Boolean(displayIp)
 
   const metrics = [
-    { label: 'Total Latency', value: isResolving ? `${displayLatency + 11} ms` : `${displayLatency} ms`, tone: 'bg-primary/5 text-primary border-primary/20' },
-    { label: 'Cache Status', value: cacheHitMiss, tone: 'bg-secondary/10 text-secondary-dark border-secondary/20' },
-    { label: 'Hops Tunnels', value: '4 Hops', tone: 'bg-slate-500/5 text-slate-700 border-slate-200' },
-    { label: 'Time To Live', value: `${ttl}s`, tone: 'bg-primary/5 text-primary border-primary/10' },
+    { label: 'Total Latency', value: isResolving ? 'Tracing...' : displayLatency !== null ? `${displayLatency} ms` : '-', tone: 'bg-primary/5 text-primary border-primary/20' },
+    { label: 'Cache Status', value: cacheHitMiss ?? '-', tone: 'bg-secondary/10 text-secondary-dark border-secondary/20' },
+    { label: 'Hops Tunnels', value: hasResolvedResult ? '4 Hops' : '-', tone: 'bg-slate-500/5 text-slate-700 border-slate-200' },
+    { label: 'Time To Live', value: ttl !== null ? `${ttl}s` : '-', tone: 'bg-primary/5 text-primary border-primary/10' },
     { label: 'Query Type', value: queryType, tone: 'bg-secondary/10 text-secondary-dark border-secondary/10' },
   ]
 
@@ -125,8 +130,13 @@ export default function ResolverTab({
             
             <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-text-muted">
               <span className="rounded-lg border border-border-subtle bg-bg-app px-3 py-1">State: {isResolving ? 'Resolving' : 'Standby'}</span>
-              <span className="rounded-lg border border-border-subtle bg-bg-app px-3 py-1">Active Nameserver: {isResolving ? 'Resolving Hops...' : '127.0.0.1 (Local)'}</span>
+              <span className="rounded-lg border border-border-subtle bg-bg-app px-3 py-1">Active Nameserver: {upstreamServer || 'Root Servers'}</span>
             </div>
+            {resolveError && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-700">
+                {resolveError}
+              </div>
+            )}
           </div>
         </motion.div>
 
@@ -286,15 +296,16 @@ export default function ResolverTab({
 
             <div className="rounded-2xl border border-secondary/25 bg-bg-app p-5 text-center">
               <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted mb-2">Resolved Mapping IP</p>
-              <p className="font-mono text-3xl font-bold tracking-tight text-primary-dark select-all truncate">{displayIp}</p>
+              <p className="font-mono text-3xl font-bold tracking-tight text-primary-dark select-all truncate">{displayIp || '-'}</p>
               <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs font-semibold">
-                <span className="rounded-lg border border-border-subtle bg-white px-2.5 py-1 text-text-main shadow-sm">{domain}</span>
-                <span className="rounded-lg border border-border-subtle bg-white px-2.5 py-1 text-text-main shadow-sm">TTL: {ttl}s</span>
-                <span className="rounded-lg border border-border-subtle bg-white px-2.5 py-1 text-text-main shadow-sm">{queryType}</span>
+                <span className="rounded-lg border border-border-subtle bg-white px-2.5 py-1 text-text-main shadow-sm">{hasResolvedResult ? domain : '-'}</span>
+                <span className="rounded-lg border border-border-subtle bg-white px-2.5 py-1 text-text-main shadow-sm">TTL: {ttl !== null ? `${ttl}s` : '-'}</span>
+                <span className="rounded-lg border border-border-subtle bg-white px-2.5 py-1 text-text-main shadow-sm">{hasResolvedResult ? queryType : '-'}</span>
               </div>
               <button
                 type="button"
                 onClick={handleCopyIp}
+                disabled={!hasResolvedResult}
                 className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-xs font-semibold text-white shadow hover:bg-primary-dark transition"
               >
                 {copied ? 'Copied to Clipboard!' : 'Copy IP Address'}
@@ -317,6 +328,7 @@ export default function ResolverTab({
               <button
                 type="button"
                 onClick={handleCopyIp}
+                disabled={!hasResolvedResult}
                 className="rounded-md border border-slate-700 bg-slate-800/40 px-2 py-1 text-[10px] font-mono text-slate-300 hover:bg-slate-800 transition"
               >
                 Copy Shell IP
@@ -336,7 +348,7 @@ export default function ResolverTab({
                 </motion.p>
               ))}
               <p className="animate-pulse text-emerald-200 mt-1 font-bold">
-                {isResolving ? 'Tracing resolvers...' : `Resolved IP: ${displayIp}`}
+                {isResolving ? 'Tracing resolvers...' : hasResolvedResult ? `Resolved IP: ${displayIp}` : 'Awaiting trace execution...'}
               </p>
             </div>
           </motion.div>

@@ -2,11 +2,12 @@ import { motion } from 'framer-motion'
 import { useState } from 'react'
 
 interface SettingsTabProps {
+  upstreamServer: string
+  setUpstreamServer: (server: string) => void
   clearLogs: () => void
 }
 
-export default function SettingsTab({ clearLogs }: SettingsTabProps) {
-  const [upstreamDns, setUpstreamDns] = useState<'cloudflare' | 'google' | 'quad9' | 'local'>('cloudflare')
+export default function SettingsTab({ upstreamServer, setUpstreamServer, clearLogs }: SettingsTabProps) {
   const [dnssec, setDnssec] = useState(true)
   const [cacheSize, setCacheSize] = useState('1024')
   const [latencyMultiplier, setLatencyMultiplier] = useState('1.0')
@@ -41,6 +42,22 @@ export default function SettingsTab({ clearLogs }: SettingsTabProps) {
           <div className="space-y-2">
             <label className="text-sm font-bold text-text-main">Upstream DNS Resolver</label>
             <p className="text-xs text-text-muted">Select the primary recursive nameserver used for root query forwarding.</p>
+            <div className="flex flex-col gap-3 pt-1 sm:flex-row">
+              <input
+                type="text"
+                value={upstreamServer}
+                onChange={(event) => setUpstreamServer(event.target.value)}
+                placeholder="1.1.1.1, 8.8.8.8, or dns.google"
+                className="w-full rounded-xl border border-border-subtle bg-white px-3 py-2 text-xs font-semibold text-text-main outline-none transition placeholder:text-slate-400 focus:border-primary"
+              />
+              <button
+                type="button"
+                onClick={() => setUpstreamServer('1.1.1.1')}
+                className="rounded-xl border border-border-subtle bg-bg-app px-4 py-2 text-xs font-bold text-text-main transition hover:bg-slate-100"
+              >
+                Reset to Cloudflare
+              </button>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 pt-1">
               {[
                 { id: 'cloudflare', name: 'Cloudflare', ip: '1.1.1.1' },
@@ -48,12 +65,12 @@ export default function SettingsTab({ clearLogs }: SettingsTabProps) {
                 { id: 'quad9', name: 'Quad9', ip: '9.9.9.9' },
                 { id: 'local', name: 'Local Host', ip: '127.0.0.1' },
               ].map((provider) => {
-                const isActive = upstreamDns === provider.id
+                const isActive = upstreamServer.trim() === provider.ip
                 return (
                   <button
                     key={provider.id}
                     type="button"
-                    onClick={() => setUpstreamDns(provider.id as any)}
+                    onClick={() => setUpstreamServer(provider.ip)}
                     className={`rounded-xl border p-3.5 text-left transition ${
                       isActive
                         ? 'border-primary bg-primary/5 text-primary'

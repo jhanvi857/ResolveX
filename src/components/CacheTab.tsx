@@ -1,44 +1,34 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
-interface CacheEntry {
+type CacheEntry = {
   domain: string
-  type: string
   ip: string
+  type: string
   ttl: number
   maxTtl: number
   size: string
+  expiresIn: number
 }
 
-const initialCache: CacheEntry[] = [
-  { domain: 'docs.cloudflare.com', type: 'A', ip: '104.18.12.98', ttl: 184, maxTtl: 300, size: '42 B' },
-  { domain: 'fonts.gstatic.com', type: 'A', ip: '142.250.72.3', ttl: 240, maxTtl: 300, size: '36 B' },
-  { domain: 'developer.mozilla.org', type: 'A', ip: '151.101.2.132', ttl: 110, maxTtl: 300, size: '48 B' },
-  { domain: 'google.com', type: 'A', ip: '142.250.190.14', ttl: 54, maxTtl: 120, size: '32 B' },
-  { domain: 'github.com', type: 'A', ip: '140.82.121.4', ttl: 282, maxTtl: 360, size: '38 B' },
-  { domain: 'api.openai.com', type: 'AAAA', ip: '2606:4700:3033::ac43:a4c5', ttl: 75, maxTtl: 120, size: '56 B' },
-]
+type CacheTabProps = {
+  entries: CacheEntry[]
+  onRefresh: () => Promise<void>
+}
 
-export default function CacheTab() {
-  const [cacheEntries, setCacheEntries] = useState<CacheEntry[]>(initialCache)
+export default function CacheTab({ entries, onRefresh }: CacheTabProps) {
   const [search, setSearch] = useState('')
 
-  const handlePurge = (domain: string) => {
-    setCacheEntries((current) => current.filter((entry) => entry.domain !== domain))
-  }
+  const filteredEntries = useMemo(() => {
+    return entries.filter(
+      (entry) =>
+        entry.domain.toLowerCase().includes(search.toLowerCase()) ||
+        entry.ip.toLowerCase().includes(search.toLowerCase())
+    )
+  }, [entries, search])
 
-  const handleFlush = () => {
-    setCacheEntries([])
-  }
-
-  const filteredEntries = cacheEntries.filter(
-    (entry) =>
-      entry.domain.toLowerCase().includes(search.toLowerCase()) ||
-      entry.ip.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const activeKeys = cacheEntries.length
-  const totalMemory = cacheEntries.reduce((sum, entry) => sum + parseInt(entry.size), 0)
+  const activeKeys = entries.length
+  const totalMemory = entries.reduce((sum, entry) => sum + Math.max(1, parseInt(entry.size, 10) || 1), 0)
 
   return (
     <motion.div
@@ -50,10 +40,10 @@ export default function CacheTab() {
       {/* Metrics Row */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Cached Records', value: `${activeKeys} keys`, desc: 'Active records in local RAM' },
-          { label: 'Cache Hit Ratio', value: '72.4%', desc: 'Recursive lookup bypass rate' },
-          { label: 'Memory Footprint', value: `${totalMemory} B`, desc: 'Active memory consumption' },
-          { label: 'Lookup Latency', value: '1.4 ms', desc: 'Average cache retrieval duration' },
+          { label: 'Cached Records', value: `${activeKeys} keys`, desc: 'Live entries from backend cache' },
+          { label: 'Cache Hit Ratio', value: activeKeys > 0 ? 'Live' : '0%', desc: 'Resolved entries returned from cache' },
+          { label: 'Memory Footprint', value: `${totalMemory} B`, desc: 'Approximate rendered entry size' },
+          { label: 'Lookup Latency', value: activeKeys > 0 ? '< 1 ms' : '0 ms', desc: 'Backend snapshot fetch' },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -71,15 +61,10 @@ export default function CacheTab() {
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center border-b border-border-subtle pb-4">
           <div>
             <h3 className="text-xl font-bold text-text-main">DNS Resolver Cache</h3>
-            <p className="text-sm text-text-muted">Inspect, trace, and purge active TTL records stored inside the memory cache.</p>
+            <p className="text-sm text-text-muted">Inspect the backend cache snapshot populated by actual resolver responses.</p>
           </div>
-          <button
-            type="button"
-            onClick={handleFlush}
-            disabled={cacheEntries.length === 0}
-            className="rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-2.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Flush Entire Cache
+          <button type="button" onClick={() => void onRefresh()} className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 text-xs font-semibold text-primary hover:bg-primary/10 transition">
+            Refresh Cache
           </button>
         </div>
 
@@ -129,7 +114,7 @@ export default function CacheTab() {
                           <td className="px-4 py-3 font-bold text-text-main">{entry.domain}</td>
                           <td className="px-4 py-3">
                             <span className="rounded bg-slate-100 px-1.5 py-0.5 font-bold text-slate-600">
-                              {entry.type}
+                              {entry.type || 'A'}
                             </span>
                           </td>
                           <td className="px-4 py-3 font-mono font-semibold text-primary-dark truncate max-w-[200px]" title={entry.ip}>
@@ -144,22 +129,14 @@ export default function CacheTab() {
                             </div>
                           </td>
                           <td className="px-4 py-3 font-mono text-text-muted">{entry.size}</td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handlePurge(entry.domain)}
-                              className="rounded-lg border border-rose-200 bg-white px-2 py-1 text-[10px] font-semibold text-rose-600 hover:bg-rose-50 transition"
-                            >
-                              Purge
-                            </button>
-                          </td>
+                          <td className="px-4 py-3 text-right text-[10px] font-semibold text-text-muted">{entry.expiresIn}s left</td>
                         </motion.tr>
                       )
                     })
                   ) : (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-text-muted">
-                        No cached records match query or cache is empty.
+                        No live cache entries yet. Resolve a hostname to populate the backend cache.
                       </td>
                     </tr>
                   )}
