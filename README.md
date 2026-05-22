@@ -2,19 +2,17 @@
 
 ResolveX is a lightweight recursive DNS resolver with a web dashboard for tracing and inspecting DNS lookups. It accepts user-provided host inputs (including pasted URLs), normalizes the input into host candidates, performs recursive DNS resolution (optionally via a specified upstream server), and displays resolution hops, latency, and cache state.
 
-## Documentation map
+## Table of contents
 
-| Section | Description | File |
-| --- | --- | --- |
-| Architecture overview | System components and data flow | This file |
-| Request and response flow | End-to-end request lifecycle | This file |
-| Setup and quick start | Local development setup | This file |
-| API | Backend endpoint contract | This file |
-| Implementation details | Resolver, cache, and parsing behavior | This file |
-| Development and testing | Validation commands and test files | This file |
-| Learning outcomes | DNS and web infrastructure notes | [learning.md](learning.md) |
-| Contributing | Contribution workflow and code review guidance | [contributing.md](contributing.md) |
-| License | MIT license | [LICENSE](LICENSE) |
+- [Architecture overview](#architecture-overview)
+- [Request and response flow](#request-and-response-flow)
+- [Learning outcomes](#learning-outcomes)
+- [Setup and quick start](#setup-and-quick-start)
+- [API](#api)
+- [Implementation details](#implementation-details)
+- [Development and testing](#development-and-testing)
+- [Contributing](contributing.md)
+- [License](LICENSE)
 
 ## Architecture overview
 
